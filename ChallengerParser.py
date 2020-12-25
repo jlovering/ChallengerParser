@@ -47,14 +47,22 @@ class OrBlock(SingleBlock):
         return self.value
 
 class LiteralBlock(SingleBlock):
-    def __init__(self, parser):
+    def __init__(self, parser, callback=None):
         self.parser = parser
+        self.callback = callback
 
         if not callable(parser):
             raise TypeError("Literal parser must be callable")
 
+        if callback is not None and not callable(callback):
+            raise TypeError("Callback must be callable")
+
     def parse(self, inp):
         logging.debug("%s, \"%s\"" % (type(self), inp))
+
+        if self.callback is not None:
+            return self.callback(self.parser(inp))
+
         return self.parser(inp)
 
 class LiteralNoParse(SingleBlock):
@@ -85,9 +93,13 @@ class EncapsulatedLine(SingleBlock):
         return self.block.parse(inp)
 
 class MultiBlockLine(SingleBlock):
-    def __init__(self, blocks, delimiter):
+    def __init__(self, blocks, delimiter, callback=None):
         self.blocks = blocks
         self.delimiter = delimiter
+        self.callback = callback
+
+        if callback is not None and not callable(callback):
+            raise TypeError("Callback must be callable")
 
         for b in self.blocks:
             if not issubclass(type(b), SingleBlock):
@@ -103,16 +115,20 @@ class MultiBlockLine(SingleBlock):
                 self.items.append(bout)
 
         if len(self.items) == 1:
-            return self.items[0]
+            self.items = self.items[0]
 
+        if self.callback is not None:
+                return self.callback(self.items)
         return self.items
 
 class ListBlock(SingleBlock):
-    def __init__(self, elementParser, delimiter):
+    def __init__(self, elementParser, delimiter, callback=None):
         self.elementParser = elementParser
-        if not callable(elementParser):
-            raise TypeError("List elementParser must be callable", elementParser)
         self.delimiter = delimiter
+        self.callback = callback
+
+        if callback is not None and not callable(callback):
+            raise TypeError("Callback must be callable")
 
     def parse(self, inp):
         self.list = []
@@ -127,13 +143,21 @@ class ListBlock(SingleBlock):
                 eparse = self.elementParser(i)
                 if eparse is not None:
                     self.list.append(eparse)
+
+        if self.callback is not None:
+            return self.callback(self.list)
+
         return self.list
 
 class ListElementMunch(SingleBlock):
-    def __init__(self, elements, elementParser, delimiter):
+    def __init__(self, elements, elementParser, delimiter, callback=None):
         self.elements = elements
         self.elementParser = elementParser
         self.delimiter = delimiter
+        self.callback = callback
+
+        if callback is not None and not callable(callback):
+            raise TypeError("Callback must be callable")
 
         if not callable(elementParser):
             raise TypeError("List elementParser must be callable", elementParser)
@@ -160,6 +184,10 @@ class ListElementMunch(SingleBlock):
                 if self.delimiter.join(cand) in self.elements:
                     self.list.append(self.delimiter.join(cand))
                     cand = []
+
+        if self.callback is not None:
+            return self.callback(self.list)
+
         return self.list
 
 class SetBlock(ListBlock):
@@ -172,12 +200,16 @@ class SetBlock(ListBlock):
 
 
 class HashPairBlock(SingleBlock):
-    def __init__(self, keyblock, valueblock, seperator, distribute=False, reverse=False):
+    def __init__(self, keyblock, valueblock, seperator, distribute=False, reverse=False, callback=None):
         self.keyblock = keyblock
         self.valueblock = valueblock
         self.seperator = seperator
         self.distribute = distribute
         self.reverse = reverse
+        self.callback = callback
+
+        if callback is not None and not callable(callback):
+            raise TypeError("Callback must be callable")
 
         if not callable(self.keyblock) and \
             not isinstance(self.valueblock, SingleBlock):
@@ -211,12 +243,19 @@ class HashPairBlock(SingleBlock):
         else:
             self.hash[key] = self.value
 
+        if self.callback is not None:
+            return self.callback(self.hash)
+
         return self.hash
 
 class HashLineBlock(SingleBlock):
-    def __init__(self, hashparser, delimiter):
+    def __init__(self, hashparser, delimiter, callback=None):
         self.hashparser = hashparser
         self.delimiter = delimiter
+        self.callback = callback
+
+        if callback is not None and not callable(callback):
+            raise TypeError("Callback must be callable")
 
         if not isinstance(self.hashparser, HashPairBlock):
             raise TypeError("HashLineBuilder needs HashPairBlock")
@@ -233,6 +272,10 @@ class HashLineBlock(SingleBlock):
             lh = self.hashparser.parse(inp)
             if lh is not None:
                 self.hash.update(lh)
+
+        if self.callback is not None:
+            return self.callback(self.hash)
+
         return self.hash
 
 class MuiltiLineBlock:
@@ -243,10 +286,14 @@ class MuiltiLineBlock:
         return inp
 
 class MultiLineSpanBuilder(MuiltiLineBlock):
-    def __init__(self, lineblock, seperator, endvalue):
+    def __init__(self, lineblock, seperator, endvalue, callback=None):
         self.lineblock = lineblock
         self.seperator = seperator
         self.endvalue = endvalue
+        self.callback = callback
+
+        if callback is not None and not callable(callback):
+            raise TypeError("Callback must be callable")
 
         if not issubclass(type(self.lineblock), SingleBlock):
             raise TypeError("SingleLineBuilder needs SingleBlock to build")
@@ -262,11 +309,18 @@ class MultiLineSpanBuilder(MuiltiLineBlock):
             line = infile.readline().rstrip()
 
         logging.debug("%s, %s" % (type(self), compositeline))
+
+        if self.callback is not None:
+            return self.callback(self.lineblock.parse(compositeline))
         return self.lineblock.parse(compositeline)
 
 class SingleLineBuilder(MuiltiLineBlock):
-    def __init__(self, lineblock):
+    def __init__(self, lineblock, callback=None):
         self.lineblock = lineblock
+        self.callback = callback
+
+        if callback is not None and not callable(callback):
+            raise TypeError("Callback must be callable")
 
         if not issubclass(type(self.lineblock), SingleBlock):
             raise TypeError("SingleLineBuilder needs SingleBlock to build")
@@ -278,12 +332,18 @@ class SingleLineBuilder(MuiltiLineBlock):
             line = intLine
         logging.debug("%s, \"%s\"" % (type(self), line))
 
+        if self.callback is not None:
+            return self.callback(self.lineblock.parse(compositeline))
         return self.lineblock.parse(line)
 
 class SingleLineBuilderThrowToEnd(SingleLineBuilder):
-    def __init__(self, lineblock, endvalue):
-        super().__init__(lineblock)
+    def __init__(self, lineblock, endvalue, callback=None):
+        super().__init__(lineblock, callback=callback)
         self.endvalue = endvalue
+        self.callback = callback
+
+        if callback is not None and not callable(callback):
+            raise TypeError("Callback must be callable")
 
     def parse(self, infile, intLine=None):
         if intLine == None:
@@ -298,9 +358,13 @@ class SingleLineBuilderThrowToEnd(SingleLineBuilder):
         return l
 
 class MultiBuilderBuilder(MuiltiLineBlock):
-    def __init__(self, blocks, endvalue):
+    def __init__(self, blocks, endvalue, callback=None):
         self.blocks = blocks
         self.endvalue = endvalue
+        self.callback = callback
+
+        if callback is not None and not callable(callback):
+            raise TypeError("Callback must be callable")
 
         for b in self.blocks:
             if not isinstance(b, MuiltiLineBlock) and \
@@ -332,14 +396,20 @@ class MultiBuilderBuilder(MuiltiLineBlock):
             self.list += blockOut
 
         if len(self.list) == 1:
-            return self.list[0]
+            self.list = self.list[0]
 
+        if self.callback is not None:
+            return self.callback(self.list)
         return self.list
 
 class ListBuilder(MuiltiLineBlock):
-    def __init__(self, lineblock, endvalue):
+    def __init__(self, lineblock, endvalue, callback=None):
         self.lineblock = lineblock
         self.endvalue = endvalue
+        self.callback = callback
+
+        if callback is not None and not callable(callback):
+            raise TypeError("Callback must be callable")
 
         if not isinstance(self.lineblock, SingleBlock) and \
             not isinstance(self.lineblock, MuiltiLineBlock) and \
@@ -370,14 +440,20 @@ class ListBuilder(MuiltiLineBlock):
             logging.debug("%s, \"%s\"" % (type(self), line))
 
         if len(self.list) == 1:
-            return self.list[0]
+            self.list = self.list[0]
 
+        if self.callback is not None:
+            return self.callback(self.list)
         return self.list
 
 class HashBuilder(MuiltiLineBlock):
-    def __init__(self, hashblock, endvalue):
+    def __init__(self, hashblock, endvalue, callback=None):
         self.hashblock = hashblock
         self.endvalue = endvalue
+        self.callback = callback
+
+        if callback is not None and not callable(callback):
+            raise TypeError("Callback must be callable")
 
         if not isinstance(self.hashblock, HashPairBlock):
             raise TypeError("Hashbuilder needs HashPairBlock to build")
@@ -398,11 +474,21 @@ class HashBuilder(MuiltiLineBlock):
 
             line = infile.readline().rstrip()
 
+        if self.callback is not None:
+            return self.callback(self.hash)
         return self.hash
 
 class InputDefinition:
-    def __init__(self):
+    def __init__(self, stringDef=None):
         self.builders = []
+
+        if stringDef is not None:
+            self.stringDef = stringDef.split('\n')
+            self.stridx = 0
+            self.builders = self.strparse()
+
+    def strParse(self):
+        return None
 
     def addBuilder(self, builder):
         if not issubclass(type(builder), MuiltiLineBlock):
