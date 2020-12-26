@@ -45,7 +45,7 @@ The later example requires far more work.
 
 By contrast, the two preceeding examples can be expressed to Challenger as follows:
 ```
-    [#int#  ]
+    [#int#]
 ```
 
 and:
@@ -117,7 +117,7 @@ There are 7 types of blocks parsing block and 3 utility types. Each block consum
 #### LiteralBlock
 Notation:
 ```
-    #  <optional parsing function | quoted literal to match> #
+    # <optional parsing function | quoted literal to match> #
 ```
 
 The LiteralBlock parses a value. If called with no options, the literal will be discarded. If a parsing function is provided then the literal will be passed to the function and the resulting value returned. Functions beyond built in 'int' and 'str' must be provided to the parser (see below). If a quoted string is provided then an exact match must be found, if the string does not match the parser will throw an exception.
