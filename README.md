@@ -40,15 +40,19 @@ Even that requires a number of key words.
 The later example requires far more work.
 
 By contrast, the two preceeding examples can be expressed to Challenger as follows:
+```
     [#int#  ]
+```
 
 and:
+```
     {{
         {int ([int ' '] or #quoteTrim#   [int ' '] ' | ') ': '}
     }
     [[
         [str None]
     ]
+```
 
 ## Parser language
 The parser treats input as two groups: things that are multiple lines, and things that are single lines. Therefore the parser has 'builders' which operate over multiple lines, and 'blocks' which operate on single lines.
@@ -62,9 +66,11 @@ By default builders parse until they hit a blank line
 
 #### ListBuilder
 Notation:
+```
     [[
         ...
     ] <optional end of section indicator>
+```
 
 ListBuilder can contain exactly 1 block.
 
@@ -74,14 +80,16 @@ List builder returns a list of what its blocks returned.
 
 #### DictBuilder
 Notation:
+```
     {{
         ...
     } <optional end of section indicator>
+```
 
 DictBuilder can contain exactly 1 Dict type block:
-    DictPairBlock
-    DictLineBlock
-    DistributingDictBlock
+* DictPairBlock
+* DictLineBlock
+* DistributingDictBlock
 
 DictBuilder will consume lines and parse according to its contained block.
 
@@ -89,9 +97,11 @@ DictBuildeer returns a dictionary composed of all the dictionaries generated wit
 
 #### MultiBuilder
 Notation:
+```
     ((
         ...
     ) <optional end of section indicator>
+```
 
 MultiBuilder can contain multiple builders/blocks. MultiBuilder will consume lines passing them to each contained block sequentailly. If a block is a builder it will consume until termination and MultiBuilder will continue from where it stopped with the next block.
 
@@ -102,62 +112,82 @@ There are 7 types of blocks parsing block and 3 utility types. Each block consum
 
 #### LiteralBlock
 Notation:
+```
     #  <optional parsing function | quoted literal to match> #
+```
 
 The LiteralBlock parses a value. If called with no options, the literal will be discarded. If a parsing function is provided then the literal will be passed to the function and the resulting value returned. Functions beyond built in 'int' and 'str' must be provided to the parser (see below). If a quoted string is provided then an exact match must be found, if the string does not match the parser will throw an exception.
 
 #### ListBlock
 Notation:
+```
     [ parsingFunction seperator|None ]
+```
 
 The ListBlock will parse the line into a list according to the seperator provided (must be in quotes). If a 'None' is provided, then the list will be spilt per character. As with LiteralBlock, the provided parsing function will be called and value returned placed in the list.
 
 #### SetBlock
 Notation:
+```
     [< parsingFunction seperator|None ]
+```
 
 SetBlock is identical to ListBlock but returns a set rather than list (helpful
 for set operations)
 
 #### GreedyListBlock
 Notation:
+```
     [* parsingFunction [inputlist] seperator|None ]
+```
 
 The GreedListBlock will parse items in the inputlist into a list. i.e. a value must appear in the inputlist to be parsed. It will consume as many characters as needed to achieve a match. As with others, the parsing function will be applied to the value before placing in the returned list.
 
 #### DictPairBlock
 Notation:
+```
     { keyParsingFunction|block valueParsingFunction|block seperator}
+```
 
 The DictPairBlock will first seperate the line according to the seperator. It will then parse the first value as the key and the second value as the value for the key/value pair. If a block notation is provided (rather than a parsing function) that key/value will be provide as input to that block and parsed according to that blocks rules, the resulting structure will be used as the key/value.
 
 #### DictLineBlock
 Notation:
+```
     {* keyParsingFunction|block valueParsingFunction|block kvSeperator itemSeperator}
+```
 
 The DictLineBlock will first seperate the line according to the item seperator, it will then apply the same ruls as DictPairBlock using the remaining arguments.
 
 #### DistributingDictBlock
 Notation:
+```
     {< keyParsingFunction|block valueParsingFunction|block seperator}
+```
 
 This is a special varient of the DictPairBlock. It is not well tested. This block requires that key resolves to a list, it will then iterate the key list and create entries for each key with the entire output of value.
 
 #### OrBlock
 Notation:
+```
     block or block
+```
 
 If an OrBlock is provided it will attempt to call each parser returning the first value which matches. Although implemented for 'n' ors, it's not clear more than 2 will work.
 
 #### EncapsulationBlock
 Notation:
+```
     > block modifyingFunction <
+```
 
 The EncapsualationBlock will apply the modifying function to the input before passing it to the underlying block
 
 #### MultiBlock
 Notation:
+```
     ( block block block... seperator)
+```
 
 The Multiblock will seperate the line according to seperator, and then apply each block in turn.
 
