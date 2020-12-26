@@ -1,13 +1,17 @@
 import sys
 import re
 import logging
+import tatsu
+import ChallengerGrammar
 
 EMPTYLINE = ""
 NODELIM = None
 SPACE = ' '
 NEWLINE = '\n'
 
-logging.basicConfig(stream=sys.stderr, level=logging.INFO)
+logger = logging.getLogger('root')
+FORMAT = "%(filename)s:%(lineno)d:%(funcName)20s() : %(message)s"
+logging.basicConfig(stream=sys.stderr, format=FORMAT, level=logging.INFO)
 
 def tr(inS, i, s):
     return inS.translate(str.maketrans(i,s))
@@ -31,7 +35,7 @@ class OrBlock(SingleBlock):
                 raise TypeError("OrBlock all parsers must be SingleBlock")
 
     def parse(self, inp):
-        logging.debug("%s, \"%s\"" % (type(self), inp))
+        logging.debug("inp: \"%s\"" % inp)
 
         self.value = None
         for p in self.parsers:
@@ -58,7 +62,7 @@ class LiteralBlock(SingleBlock):
             raise TypeError("Callback must be callable")
 
     def parse(self, inp):
-        logging.debug("%s, \"%s\"" % (type(self), inp))
+        logging.debug("inp: \"%s\"" % inp)
 
         if self.callback is not None:
             return self.callback(self.parser(inp))
@@ -71,25 +75,23 @@ class LiteralNoParse(SingleBlock):
         return
 
     def parse(self, inp):
-        logging.debug("%s, \"%s\" <nop>" % (type(self), inp))
+        logging.debug("inp: \"%s\"" % inp)
         if self.absolute is not None:
             if inp != self.absolute:
                 raise ValueError("LiteralNoParse exact value expected not received")
         return None
 
 class EncapsulatedLine(SingleBlock):
-    def __init__(self, leadtrim, tailtrim, block):
-        self.leadtrim = leadtrim
-        self.tailtrim = tailtrim
+    def __init__(self, trimmer, block):
+        self.trimmer = trimmer
         self.block = block
 
-        if not callable(self.leadtrim) or \
-            not callable(self.tailtrim):
-            raise TypeError("EncapsulatedLine requires callable trimmers")
+        if not callable(self.trimmer):
+            raise TypeError("EncapsulatedLine requires callable trimmer")
 
     def parse(self, inp):
-        logging.debug("%s, \"%s\" <nop>" % (type(self), inp))
-        inp = self.leadtrim(self.tailtrim(inp))
+        logging.debug("inp: \"%s\"" % inp)
+        inp = self.trimmer(inp)
         return self.block.parse(inp)
 
 class MultiBlockLine(SingleBlock):
@@ -106,10 +108,10 @@ class MultiBlockLine(SingleBlock):
                 raise TypeError("MultiBlockLine must parse blocks")
 
     def parse(self, inp):
-        logging.debug("%s, \"%s\"" % (type(self), inp))
+        logging.debug("inp: \"%s\"" % inp)
         self.items = []
         for (line, b) in zip(inp.split(self.delimiter), self.blocks):
-            logging.debug("\t%s" % line)
+            logging.debug("inp: \"%s\"" % inp)
             bout = b.parse(line)
             if bout is not None:
                 self.items.append(bout)
@@ -127,12 +129,15 @@ class ListBlock(SingleBlock):
         self.delimiter = delimiter
         self.callback = callback
 
+        if not callable(elementParser):
+            raise TypeError("List elementParser must be callable", elementParser)
+
         if callback is not None and not callable(callback):
             raise TypeError("Callback must be callable")
 
     def parse(self, inp):
         self.list = []
-        logging.debug("%s, \"%s\"" % (type(self), inp))
+        logging.debug("inp: \"%s\"" % inp)
         if self.delimiter is None:
             for i in inp:
                 eparse = self.elementParser(i)
@@ -164,7 +169,7 @@ class ListElementMunch(SingleBlock):
 
     def parse(self, inp):
         self.list = []
-        logging.debug("%s, \"%s\"" % (type(self), inp))
+        logging.debug("inp: \"%s\"" % inp)
         if self.delimiter is None:
             cand = []
             remaining = inp
@@ -220,7 +225,7 @@ class HashPairBlock(SingleBlock):
             raise TypeError("Valueblock must be callable or SinglBlock")
 
     def parse(self, inp):
-        logging.debug("%s, \"%s\"" % (type(self), inp))
+        logging.debug("inp: \"%s\"" % inp)
         if not self.reverse:
             key, value = inp.split(self.seperator)
         else:
@@ -261,7 +266,7 @@ class HashLineBlock(SingleBlock):
             raise TypeError("HashLineBuilder needs HashPairBlock")
 
     def parse(self, inp):
-        logging.debug("%s, \"%s\"" % (type(self), inp))
+        logging.debug("inp: \"%s\"" % inp)
         self.hash = {}
         if self.delimiter is not None:
             for l in inp.split(self.delimiter):
@@ -299,16 +304,16 @@ class MultiLineSpanBuilder(MuiltiLineBlock):
             raise TypeError("SingleLineBuilder needs SingleBlock to build")
 
     def parse(self, infile, incLine=""):
-        logging.debug("%s, \"%s\"" % (type(self), incLine))
+        logging.debug("inp: \"%s\"" % incLine)
         compositeline = incLine
 
         line = infile.readline().rstrip()
         while line != self.endvalue:
             compositeline += self.seperator + line
-            logging.debug("%s, \"%s\"" % (type(self), compositeline))
+            logging.debug("inp: \"%s\"" % line)
             line = infile.readline().rstrip()
 
-        logging.debug("%s, %s" % (type(self), compositeline))
+        logging.debug("inp: \"%s\"" % line)
 
         if self.callback is not None:
             return self.callback(self.lineblock.parse(compositeline))
@@ -330,7 +335,7 @@ class SingleLineBuilder(MuiltiLineBlock):
             line = infile.readline().rstrip()
         else:
             line = intLine
-        logging.debug("%s, \"%s\"" % (type(self), line))
+        logging.debug("inp: \"%s\"" % line)
 
         if self.callback is not None:
             return self.callback(self.lineblock.parse(compositeline))
@@ -350,7 +355,7 @@ class SingleLineBuilderThrowToEnd(SingleLineBuilder):
             line = infile.readline().rstrip()
         else:
             line = intLine
-        logging.debug("%s, \"%s\"" % (type(self), line))
+        logging.debug("inp: \"%s\"" % line)
 
         l = super().parse(infile)
         while infile.readline().rstrip() != self.endvalue:
@@ -376,7 +381,7 @@ class MultiBuilderBuilder(MuiltiLineBlock):
             line = infile.readline().rstrip()
         else:
             line = intLine
-        logging.debug("%s, \"%s\"" % (type(self), line))
+        logging.debug("inp: \"%s\"" % line)
         self.list = []
         while line != self.endvalue:
             blockOut = []
@@ -392,7 +397,7 @@ class MultiBuilderBuilder(MuiltiLineBlock):
                     blockOut.append(l)
 
                 line = infile.readline().rstrip()
-                logging.debug("%s, \"%s\"" % (type(self), line))
+                logging.debug("inp: \"%s\"" % line)
             self.list += blockOut
 
         if len(self.list) == 1:
@@ -414,14 +419,14 @@ class ListBuilder(MuiltiLineBlock):
         if not isinstance(self.lineblock, SingleBlock) and \
             not isinstance(self.lineblock, MuiltiLineBlock) and \
             not isinstance(self.lineblock, MultiLineSpanBuilder):
-            raise TypeError("Listbuilder needs SingleBlock or MultiLineSpanBuilder to build")
+            raise TypeError("Listbuilder needs SingleBlock or MultiLineSpanBuilder got \"%s\"" % type(self.lineblock))
 
     def parse(self, infile, intLine=None):
         if intLine == None:
             line = infile.readline().rstrip()
         else:
             line = intLine
-        logging.debug("%s, \"%s\"" % (type(self), line))
+        logging.debug("inp: \"%s\"" % line)
         self.list = []
         while line != self.endvalue:
             if isinstance(self.lineblock, SingleBlock):
@@ -437,7 +442,7 @@ class ListBuilder(MuiltiLineBlock):
                 self.list.append(l)
 
             line = infile.readline().rstrip()
-            logging.debug("%s, \"%s\"" % (type(self), line))
+            logging.debug("inp: \"%s\"" % line)
 
         if len(self.list) == 1:
             self.list = self.list[0]
@@ -455,7 +460,8 @@ class HashBuilder(MuiltiLineBlock):
         if callback is not None and not callable(callback):
             raise TypeError("Callback must be callable")
 
-        if not isinstance(self.hashblock, HashPairBlock):
+        if not isinstance(self.hashblock, HashPairBlock) and \
+            not isinstance(self.hashblock, HashLineBlock):
             raise TypeError("Hashbuilder needs HashPairBlock to build")
 
     def parse(self, infile, intLine=None):
@@ -464,7 +470,7 @@ class HashBuilder(MuiltiLineBlock):
         else:
             line = intLine
 
-        logging.debug("%s, \"%s\"" % (type(self), line))
+        logging.debug("inp: \"%s\"" % line)
 
         self.hash = {}
         while line != self.endvalue:
@@ -479,21 +485,253 @@ class HashBuilder(MuiltiLineBlock):
         return self.hash
 
 class InputDefinition:
-    def __init__(self, stringDef=None):
+    def __init__(self):
         self.builders = []
+        self.functions = {
+            'int' : int,
+            'str' : str }
 
+    def buildersFromStr(self, stringDef):
         if stringDef is not None:
             self.stringDef = stringDef.split('\n')
             self.stridx = 0
-            self.builders = self.strparse()
+            self.strParseRootBuilders()
 
-    def strParse(self):
-        return None
+    def strParseUnQuote(self, str):
+        return str[1:-1]
+
+    def strParseRootBuilders(self):
+        while self.stridx < len(self.stringDef):
+            self.addBuilder(self.strParseBuilder())
+
+    def strParseBuilder(self):
+        while self.stridx < len(self.stringDef):
+            ast = tatsu.parse(ChallengerGrammar.GRAMMAR, self.stringDef[self.stridx])
+            self.stridx += 1
+            logging.debug("ast: \"%s\"" % str(ast))
+            if isinstance(ast, tuple) and len(ast) > 1:
+                return SingleLineBuilder(self.strParseBlock(ast))
+            elif ast == '((':
+                return self.strParseMultiBuilderBuilder()
+            elif ast == '[[':
+                return self.strParseListBuilder()
+            elif ast == '{{':
+                return self.strParseHashBuilder()
+            else:
+                raise ValueError("Not a valid builder")
+
+    def strParseMultiBuilderBuilder(self):
+        builders = []
+        while self.stridx < len(self.stringDef):
+            ast = tatsu.parse(ChallengerGrammar.GRAMMAR, self.stringDef[self.stridx])
+            self.stridx += 1
+            logging.debug("ast: \"%s\"" % str(ast))
+            if isinstance(ast, tuple) and len(ast) > 1:
+                builders.append(SingleLineBuilder(self.strParseBlock(ast)))
+            elif ast == '((':
+                builders.append(self.strParseMultiBuilderBuilder())
+            elif ast == '[[':
+                builders.append(self.strParseListBuilder())
+            elif ast == '{{':
+                builders.append(self.strParseHashBuilder())
+            elif ast == ')':
+                #Close this Multibuilder
+                if len(ast) == 2:
+                    return MultiBuilderBuilder(builders, self.strParseUnQuote(ast[0]))
+                else:
+                    return MultiBuilderBuilder(builders, EMPTYLINE)
+            else:
+                raise ValueError("Not a valid builder")
+
+    def strParseListBuilder(self):
+        builder = None
+        while self.stridx < len(self.stringDef):
+            ast = tatsu.parse(ChallengerGrammar.GRAMMAR, self.stringDef[self.stridx])
+            self.stridx += 1
+            logging.debug("ast: \"%s\"" % str(ast))
+            if isinstance(ast, tuple) and len(ast) > 1:
+                if builder is not None:
+                    raise ValueError("List Builder can only contain one element")
+                builder = self.strParseBlock(ast)
+            elif ast == '((':
+                if builder is not None:
+                    raise ValueError("List Builder can only contain one element")
+                builder = self.strParseMultiBuilderBuilder()
+            elif ast == '[[':
+                if builder is not None:
+                    raise ValueError("List Builder can only contain one element")
+                builder = self.strParseListBuilder()
+            elif ast == '{{':
+                if builder is not None:
+                    raise ValueError("List Builder can only contain one element")
+                builder = self.strParseHashBuilder()
+            elif ast == ']':
+                #Close this ListBuilder
+                if len(ast) == 2:
+                    return ListBuilder(builder, self.strParseUnQuote(ast[1]))
+                else:
+                    return ListBuilder(builder, EMPTYLINE)
+            else:
+                raise ValueError("Not a valid builder")
+
+    def strParseHashBuilder(self):
+        builder = None
+        while self.stridx < len(self.stringDef):
+            ast = tatsu.parse(ChallengerGrammar.GRAMMAR, self.stringDef[self.stridx])
+            self.stridx += 1
+            logging.debug("ast: \"%s\"" % str(ast))
+            if isinstance(ast, tuple) and len(ast) > 1 and ast[0][0] == '{':
+                if builder is not None:
+                    raise ValueError("Hash Builder can only contain one element")
+                builder = self.strParseBlock(ast)
+            elif ast == '}':
+                #Close this ListBuilder
+                if len(ast) == 2:
+                    return HashBuilder(builder, self.strParseUnQuote(ast[1]))
+                else:
+                    return HashBuilder(builder, EMPTYLINE)
+            else:
+                raise ValueError("Not a valid builder")
+
+    def strParseBlock(self, ast):
+        logging.debug("ast: \"%s\"" % str(ast))
+        if ast[0] == '#':
+            return self.strParseLiteralBlock(ast)
+        elif ast[0] == '(':
+            return self.strParseMultiBlockLine(ast)
+        elif ast[0] == '[':
+            return self.strParseListBlock(ast)
+        elif ast[0] == '[*':
+            return self.strParseListMunchBlock(ast)
+        elif ast[0] == '[<':
+            return self.strParseSetBlock(ast)
+        elif ast[0] == '{':
+            return self.strParseHashPairBlock(ast)
+        elif ast[0] == '{*':
+            return self.strParseHashLineBlock(ast)
+        elif ast[0] == '{<':
+            return self.strParseHashDistributeBlock(ast)
+        elif ast[0] == 'or':
+            return self.strParseOrBlock(ast)
+        elif ast[0] == '>':
+            return self.strParseEncapBlock(ast)
+        else:
+            raise ValueError("Not a valid block")
+
+    def strParseLiteralBlock(self, ast):
+        logging.debug("ast: \"%s\"" % str(ast))
+        if len(ast) == 2:
+            return LiteralNoParse()
+        m = re.match(r"\"(.+)\"", ast[1])
+        if m is not None:
+            return LiteralNoParse(self.strParseUnQuote(ast[1]))
+        else:
+            return LiteralBlock(self.functions[ast[1]])
+
+    def strParseMultiBlockLine(self, ast):
+        logging.debug("ast: \"%s\"" % str(ast))
+        blocks = []
+        for b in ast[1]:
+            blocks.append(self.strParseBlock(b))
+        return MultiBlockLine(blocks, self.strParseUnQuote(ast[2]))
+
+    def strParseListBlock(self, ast):
+        logging.debug("ast: \"%s\"" % str(ast))
+        seperator = ast[2]
+        if seperator == 'None':
+            return ListBlock(self.functions[ast[1]], None)
+        else:
+            return ListBlock(self.functions[ast[1]], self.strParseUnQuote(seperator))
+
+    def strParseSetBlock(self, ast):
+        logging.debug("ast: \"%s\"" % str(ast))
+        seperator = ast[2]
+        if seperator == 'None':
+            return SetBlock(self.functions[ast[1]], None)
+        else:
+            return SetBlock(self.functions[ast[1]], self.strParseUnQuote(seperator))
+
+    def strParseListMunchBlock(self, ast):
+        logging.debug("ast: \"%s\"" % str(ast))
+        elements = []
+        for e in ast[2][1]:
+            elements.append(self.strParseUnQuote(e))
+
+        seperator = ast[3]
+        if seperator == 'None':
+            return ListElementMunch(elements, self.functions[ast[1]], None)
+        else:
+            return ListElementMunch(elements, self.functions[ast[1]], self.strParseUnQuote(seperator))
+
+    def strParseHashPairBlock(self, ast):
+        logging.debug("ast: \"%s\"" % str(ast))
+
+        if type(ast[1]) == tuple:
+            key = self.strParseBlock(ast[2])
+        else:
+            key = self.functions[ast[1]]
+
+        if type(ast[2]) == tuple:
+            value = self.strParseBlock(ast[2])
+        else:
+            value = self.functions[ast[2]]
+
+        return HashPairBlock(key, value, self.strParseUnQuote(ast[3]))
+
+    def strParseHashLineBlock(self, ast):
+        logging.debug("ast: \"%s\"" % str(ast))
+
+        if type(ast[1]) == tuple:
+            key = self.strParseBlock(ast[2])
+        else:
+            key = self.functions[ast[1]]
+
+        if type(ast[2]) == tuple:
+            value = self.strParseBlock(ast[2])
+        else:
+            value = self.functions[ast[2]]
+
+        return HashLineBlock(HashPairBlock(key, value, self.strParseUnQuote(ast[3])), self.strParseUnQuote(ast[4]))
+
+    def strParseHashDistributeBlock(self, ast):
+        logging.debug("ast: \"%s\"" % str(ast))
+
+        if type(ast[1]) == tuple:
+            key = self.strParseBlock(ast[2])
+        else:
+            key = self.functions[ast[1]]
+
+        if type(ast[2]) == tuple:
+            value = self.strParseBlock(ast[2])
+        else:
+            value = self.functions[ast[2]]
+
+        return HashPairBlock(key, value, self.strParseUnQuote(ast[3]), distribute=True)
+
+    def strParseOrBlock(self, ast):
+        logging.debug("ast: \"%s\"" % str(ast))
+
+        blocks = []
+        for b in ast[1:]:
+            blocks.append(self.strParseBlock(b))
+
+        return OrBlock(blocks)
+
+    def strParseEncapBlock(self, ast):
+        logging.debug("ast: \"%s\"" % str(ast))
+
+        return EncapsulatedLine(self.functions[ast[2]], self.strParseBlock(ast[1]))
 
     def addBuilder(self, builder):
         if not issubclass(type(builder), MuiltiLineBlock):
             raise TypeError("Builders must be MuiltiLineBlocks, use SingleLineBuilder for 1 line")
         self.builders.append(builder)
+
+    def addFunction(self, name, func):
+        if not callable(func):
+            raise TypeError("Parser functions must be callable")
+
+        self.functions[name] = func
 
 class Input:
     def __init__(self, infile, definition):
