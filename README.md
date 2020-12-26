@@ -14,9 +14,12 @@ lists,
 dictionaries
 
 For example Advent of Code 2020 featured simple formats:
+```
     0,3,6
+```
 
 And more complex:
+```
     0: 4 1 5
     1: 2 3 | 3 2
     2: 4 4 | 5 5
@@ -29,6 +32,7 @@ And more complex:
     abbbab
     aaabbb
     aaaabbb
+```
 
 Though the former is easy to formulate a parser for:
 ```python
