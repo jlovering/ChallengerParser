@@ -725,33 +725,48 @@ class InputDefinition:
         # So we pull those out of the ast and recursively parse them
         logging.debug("ast: \"%s\"" % str(ast))
 
-        if type(ast[0]) == tuple:
-            key = self.strParseBlock(ast[0])
-        else:
-            key = self.functions[ast[0]]
+        # Hash pair blocks take the form:
+        #  ('{', [rev], keyparser|block, valueparser|block, "seperator", '}')
+        #  ('{', [rev], keyparser|block, valueparser|block, "seperator", '\', callback, '}')
+        # If key or value are blocks, then they will be nested tuples
 
-        if type(ast[1]) == tuple:
-            value = self.strParseBlock(ast[1])
-        else:
-            value = self.functions[ast[1]]
+        # Support the reversed type by detecting revesed, caller will pass enough
+        # AST to not have to worry, this function slices the AST to after the KV objects
 
-        return key, value
+        if type(ast[0]) == str and ast[0] == "rev":
+            astKey = ast[2]
+            astValue = ast[1]
+            astRemaining = ast[3:]
+            reverse = True
+        else:
+            astKey = ast[0]
+            astValue = ast[1]
+            astRemaining = ast[2:]
+            reverse = False
+
+        if type(astKey) == tuple:
+            key = self.strParseBlock(astKey)
+        else:
+            key = self.functions[astKey]
+
+        if type(astValue) == tuple:
+            value = self.strParseBlock(astValue)
+        else:
+            value = self.functions[astValue]
+
+        return key, value, reverse, astRemaining
 
     def strParseHashPairBlock(self, ast, distribute=False):
         logging.debug("ast: \"%s\"" % str(ast))
 
-        # Hash pair blocks take the form:
-        #  ('{', keyparser|block, valueparser|block, "seperator", '}')
-        #  ('{', keyparser|block, valueparser|block, "seperator", '\', callback, '}')
-        # If key or value are blocks, then they will be nested tuples
-
-        key, value = self.strParseHashTypeKV_helper(ast[1:3])
+        key, value, reverse, ast = self.strParseHashTypeKV_helper(ast[1:])
+        # ast is replaces and is now align to after the kv pair
 
         # Incidentally the seperator and optional callback take the same form here
         # As in listblocks, so reuse to make life easier
-        seperator, callback = self.strParseTrailingArgs_helper(ast[3:])
+        seperator, callback = self.strParseTrailingArgs_helper(ast)
 
-        return HashPairBlock(key, value, seperator, distribute, callback)
+        return HashPairBlock(key, value, seperator, distribute, reverse, callback)
 
     def strParseHashLineBlock(self, ast):
         logging.debug("ast: \"%s\"" % str(ast))
@@ -760,13 +775,14 @@ class InputDefinition:
         # Seperator is added. The first is always the key/value seperator and the second
         # is always the item seperator. We reuse the trailing arg function as it will work
 
-        key, value = self.strParseHashTypeKV_helper(ast[1:3])
+        key, value, reverse, ast = self.strParseHashTypeKV_helper(ast[1:])
+        # ast is replaces and is now align to after the kv pair
 
-        seperator = self.strParseUnQuote(ast[3])
+        seperator = self.strParseUnQuote(ast[0])
 
-        itemSeperator, callback = self.strParseTrailingArgs_helper(ast[4:])
+        itemSeperator, callback = self.strParseTrailingArgs_helper(ast[1:])
 
-        return HashLineBlock(HashPairBlock(key, value, seperator), itemSeperator, callback)
+        return HashLineBlock(HashPairBlock(key, value, seperator, reverse=reverse), itemSeperator, callback)
 
 
     def strParseOrBlock(self, ast):

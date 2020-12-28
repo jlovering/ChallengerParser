@@ -485,10 +485,92 @@ class Day21Test_Strings(DayTest, unittest.TestCase):
         self.definition = parser.InputDefinition()
         self.definition.addFunction('Day21Test_Strings_custom', lambda s: s[:-1])
         self.definition.buildersFromStr('''[[
-([str ' '] >[str ', '] Day21Test_Strings_custom< ' (contains ')
+    ([str ' '] >[str ', '] Day21Test_Strings_custom< ' (contains ')
+ ]''')
+        self.infile = open("testfiles/day21-testInput", "r")
+
+class Day21ATest(DayTest, unittest.TestCase):
+    '''
+    Unfortunately this input is too weird, so the parser would have to return a list array and further handling is needed
+    '''
+    def setUp(self):
+        self.composedSetMap = {}
+        self.composedKeysCount = {}
+        def composeSetMap(h):
+            print(h)
+            for k in h:
+                if k in self.composedSetMap:
+                    self.composedSetMap[k] = self.composedSetMap[k].intersection(h[k])
+                else:
+                    self.composedSetMap[k] = h[k]
+            return h
+        def composeKeyCount(l):
+            print(l)
+            for v in l:
+                print(v)
+                if v in self.composedKeysCount:
+                    self.composedKeysCount[v] += 1
+                else:
+                    self.composedKeysCount[v] = 1
+            return l
+
+        self.definition = parser.InputDefinition()
+        self.definition.addBuilder( \
+            parser.ListBuilder( \
+                    parser.HashPairBlock(
+                            parser.EncapsulatedLine( \
+                                lambda s: s[:-1], \
+                                parser.ListBlock(str, ', ', composeKeyCount) \
+                                ), \
+                            parser.SetBlock(str, ' '), \
+                        ' (contains ', reverse=True, distribute=True, callback=composeSetMap), \
+                parser.EMPTYLINE) \
+            )
+
+        self.infile = open("testfiles/day21-testInput", "r")
+
+    def testParse(self):
+        super().testParse()
+
+        assert self.composedSetMap == testCaseSoT.Day21ATest_compSet
+        assert self.composedKeysCount == testCaseSoT.Day21ATest_compKeyC
+
+class Day21ATest_Strings(DayTest, unittest.TestCase):
+    def setUp(self):
+        self.composedSetMap = {}
+        self.composedKeysCount = {}
+        def composeSetMap(h):
+            print(h)
+            for k in h:
+                if k in self.composedSetMap:
+                    self.composedSetMap[k] = self.composedSetMap[k].intersection(h[k])
+                else:
+                    self.composedSetMap[k] = h[k]
+            return h
+        def composeKeyCount(l):
+            print(l)
+            for v in l:
+                print(v)
+                if v in self.composedKeysCount:
+                    self.composedKeysCount[v] += 1
+                else:
+                    self.composedKeysCount[v] = 1
+            return l
+        self.definition = parser.InputDefinition()
+        self.definition.addFunction('Day21Test_Strings_custom', lambda s: s[:-1])
+        self.definition.addFunction('Day21ATest_composeSetMap', composeSetMap)
+        self.definition.addFunction('Day21ATest_composeKeyCount', composeKeyCount)
+        self.definition.buildersFromStr('''[[
+{< rev [<str ' '] >[str ', ' / Day21ATest_composeKeyCount] Day21Test_Strings_custom< ' (contains ' / Day21ATest_composeSetMap }
 ]''')
 
         self.infile = open("testfiles/day21-testInput", "r")
+
+    def testParse(self):
+        super().testParse()
+
+        assert self.composedSetMap == testCaseSoT.Day21ATest_compSet
+        assert self.composedKeysCount == testCaseSoT.Day21ATest_compKeyC
 
 class Day22Test(DayTest, unittest.TestCase):
     def setUp(self):

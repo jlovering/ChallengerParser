@@ -92,6 +92,11 @@ encapblock
     '>' block functionName '<'
     ;
 
+hashableencapblock
+    =
+    '>' hashableblock functionName '<'
+    ;
+
 literalblock
     =
     | '#' functionName ['/' functionName] '#'
@@ -120,21 +125,22 @@ hashableblock
     | listblock
     | greedylistblock
     | setblock
+    | hashableencapblock
     ;
 
 hashpairblock
     =
-    '{' (functionName|hashableblock) (functionName|block) quotedstring ['/' functionName] '}'
+    '{' ['rev'] (functionName|hashableblock) (functionName|block) quotedstring ['/' functionName] '}'
     ;
 
 hashpairdistribute
     =
-    '{<' (functionName|hashableblock) (functionName|block) quotedstring ['/' functionName] '}'
+    '{<' ['rev'] (functionName|hashableblock) (functionName|block) quotedstring ['/' functionName] '}'
     ;
 
 hashlineblock
     =
-    '{*' (functionName|hashableblock) (functionName|block) quotedstring quotedstring ['/' functionName] '}'
+    '{*' ['rev'] (functionName|hashableblock) (functionName|block) quotedstring quotedstring ['/' functionName] '}'
     ;
 
 multiblock
