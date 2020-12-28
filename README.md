@@ -68,12 +68,17 @@ There are 3 types of builder: ListBuilder, DictBuilder (called 'hash' in the cod
 
 By default builders parse until they hit a blank line
 
+Notation notes:
+    * Optional parameters are denoted by '<>' as this is not part of the language notation.
+    * The '/' for callback functions is required
+    * '|' is used to indicate 'or'
+
 #### ListBuilder
 Notation:
 ```
     [[
         ...
-    ] <optional end of section indicator>
+    ] <optional end of section indicator> </ optional callback function>
 ```
 
 ListBuilder can contain exactly 1 block.
@@ -87,7 +92,7 @@ Notation:
 ```
     {{
         ...
-    } <optional end of section indicator>
+    } <optional end of section indicator> </ optional callback function>
 ```
 
 DictBuilder can contain exactly 1 Dict type block:
@@ -104,7 +109,7 @@ Notation:
 ```
     ((
         ...
-    ) <optional end of section indicator>
+    ) <optional end of section indicator> </ optional callback function>
 ```
 
 MultiBuilder can contain multiple builders/blocks. MultiBuilder will consume lines passing them to each contained block sequentailly. If a block is a builder it will consume until termination and MultiBuilder will continue from where it stopped with the next block.
@@ -125,7 +130,7 @@ The LiteralBlock parses a value. If called with no options, the literal will be 
 #### ListBlock
 Notation:
 ```
-    [ parsingFunction seperator|None ]
+    [ parsingFunction seperator|None </ optional callback function> ]
 ```
 
 The ListBlock will parse the line into a list according to the seperator provided (must be in quotes). If a 'None' is provided, then the list will be spilt per character. As with LiteralBlock, the provided parsing function will be called and value returned placed in the list.
@@ -133,7 +138,7 @@ The ListBlock will parse the line into a list according to the seperator provide
 #### SetBlock
 Notation:
 ```
-    [< parsingFunction seperator|None ]
+    [< parsingFunction seperator|None </ optional callback function> ]
 ```
 
 SetBlock is identical to ListBlock but returns a set rather than list (helpful
@@ -142,7 +147,7 @@ for set operations)
 #### GreedyListBlock
 Notation:
 ```
-    [* parsingFunction [inputlist] seperator|None ]
+    [* parsingFunction [inputlist] seperator|None </ optional callback function> ]
 ```
 
 The GreedListBlock will parse items in the inputlist into a list. i.e. a value must appear in the inputlist to be parsed. It will consume as many characters as needed to achieve a match. As with others, the parsing function will be applied to the value before placing in the returned list.
@@ -150,23 +155,23 @@ The GreedListBlock will parse items in the inputlist into a list. i.e. a value m
 #### DictPairBlock
 Notation:
 ```
-    { keyParsingFunction|block valueParsingFunction|block seperator}
+    { [rev] keyParsingFunction|block valueParsingFunction|block seperator </ optional callback function> }
 ```
 
-The DictPairBlock will first seperate the line according to the seperator. It will then parse the first value as the key and the second value as the value for the key/value pair. If a block notation is provided (rather than a parsing function) that key/value will be provide as input to that block and parsed according to that blocks rules, the resulting structure will be used as the key/value.
+The DictPairBlock will first seperate the line according to the seperator. It will then parse the first value as the key and the second value as the value for the key/value pair (if the optional 'rev' flag is provided, the key and value parsers will be flipped and assumed flipped in the input). If a block notation is provided (rather than a parsing function) that key/value will be provide as input to that block and parsed according to that blocks rules, the resulting structure will be used as the key/value.
 
 #### DictLineBlock
 Notation:
 ```
-    {* keyParsingFunction|block valueParsingFunction|block kvSeperator itemSeperator}
+    {* [rev] keyParsingFunction|block valueParsingFunction|block kvSeperator itemSeperator </ optional callback function> }
 ```
 
-The DictLineBlock will first seperate the line according to the item seperator, it will then apply the same ruls as DictPairBlock using the remaining arguments.
+The DictLineBlock will first seperate the line according to the item seperator, it will then apply the same rules as DictPairBlock using the remaining arguments.
 
 #### DistributingDictBlock
 Notation:
 ```
-    {< keyParsingFunction|block valueParsingFunction|block seperator}
+    {< [rev] keyParsingFunction|block valueParsingFunction|block seperator </ optional callback function> }
 ```
 
 This is a special varient of the DictPairBlock. It is not well tested. This block requires that key resolves to a list, it will then iterate the key list and create entries for each key with the entire output of value.
@@ -190,10 +195,24 @@ The EncapsualationBlock will apply the modifying function to the input before pa
 #### MultiBlock
 Notation:
 ```
-    ( block block block... seperator)
+    ( block block block... seperator </ optional callback function> )
 ```
 
 The Multiblock will seperate the line according to seperator, and then apply each block in turn.
+
+### Custom Functions
+Because the functions are resolved inside the parsing library, any function desired needs to be provided using the addFunction call to the InputDefinition class (see below).
+
+Custom functions are used for parsers, and massaging of values. The return of the custom function is added directly into the data structure.
+
+Additionally, custom functions can be passed as special 'callback' functions. These are called once the block completes with the block's complete data structure. The return from this function will be treated as the blocks output. This is intended to perform secondary indexing on the structure (i.e. if you need the reverse of the dictionary, or some iterative composition).
+
+The expected function prototype is therefore:
+```python
+def function(value):
+    ...
+    return valueTransformed
+```
 
 ## Usage
 ### Example
