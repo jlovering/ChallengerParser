@@ -11,7 +11,7 @@ NEWLINE = '\n'
 
 logger = logging.getLogger('root')
 FORMAT = "%(filename)s:%(lineno)d:%(funcName)20s() : %(message)s"
-logging.basicConfig(stream=sys.stderr, format=FORMAT, level=logging.INFO)
+logging.basicConfig(stream=sys.stderr, format=FORMAT, level=logging.DEBUG)
 
 def tr(inS, i, s):
     return inS.translate(str.maketrans(i,s))
@@ -196,8 +196,8 @@ class ListElementMunch(SingleBlock):
         return self.list
 
 class SetBlock(ListBlock):
-    def __init__(self, elementParser, delimiter):
-        super().__init__(elementParser, delimiter)
+    def __init__(self, elementParser, delimiter, callback=None):
+        super().__init__(elementParser, delimiter, callback)
 
     def parse(self, inp):
         tlist = super().parse(inp)
@@ -504,21 +504,49 @@ class InputDefinition:
         while self.stridx < len(self.stringDef):
             self.addBuilder(self.strParseBuilder())
 
+    def strParseBuilder_helper(self, ast):
+        # At this point the AST is either a builder symbol, which can only be one item
+        # For reasons I don't understand tatsu will return this as a none tuple
+        # Any tuple is by definition not the start of a builder block, and those must be
+        # of a length greater than 1
+        if isinstance(ast, tuple) and len(ast) > 1:
+            return SingleLineBuilder(self.strParseBlock(ast))
+        elif ast == '((':
+            return self.strParseMultiBuilderBuilder()
+        elif ast == '[[':
+            return self.strParseListBuilder()
+        elif ast == '{{':
+            return self.strParseHashBuilder()
+        else:
+            raise ValueError("Not a valid builder")
+
     def strParseBuilder(self):
         while self.stridx < len(self.stringDef):
             ast = tatsu.parse(ChallengerGrammar.GRAMMAR, self.stringDef[self.stridx])
             self.stridx += 1
             logging.debug("ast: \"%s\"" % str(ast))
-            if isinstance(ast, tuple) and len(ast) > 1:
-                return SingleLineBuilder(self.strParseBlock(ast))
-            elif ast == '((':
-                return self.strParseMultiBuilderBuilder()
-            elif ast == '[[':
-                return self.strParseListBuilder()
-            elif ast == '{{':
-                return self.strParseHashBuilder()
-            else:
-                raise ValueError("Not a valid builder")
+            return self.strParseBuilder_helper(ast)
+
+    def strParseBuilder_closehelper(self, ast):
+        # There are 4 valid close forms for any builder:
+        #   ')',
+        #   (')', "delimiter")
+        #   (')', '/',          callback)
+        #   (')', "delimiter",  '/',        callback)
+        # The first is handled directly, the ast passed here is only after the initial
+        # close symbol, and assumes that is stripped
+
+        if len(ast) == 1:
+            # Can only have a delimiter:
+            return self.strParseUnQuote(ast[0]), None
+        elif len(ast) == 2:
+            # Can only be a callback
+            return None, self.functions[ast[1]]
+        elif len(ast) == 3:
+            # Both!
+            return self.strParseUnQuote(ast[0]), self.functions[ast[2]]
+        else:
+            raise ValueError("Malformed builder close: \"%s\"" % (ast))
 
     def strParseMultiBuilderBuilder(self):
         builders = []
@@ -526,22 +554,15 @@ class InputDefinition:
             ast = tatsu.parse(ChallengerGrammar.GRAMMAR, self.stringDef[self.stridx])
             self.stridx += 1
             logging.debug("ast: \"%s\"" % str(ast))
-            if isinstance(ast, tuple) and len(ast) > 1:
-                builders.append(SingleLineBuilder(self.strParseBlock(ast)))
-            elif ast == '((':
-                builders.append(self.strParseMultiBuilderBuilder())
-            elif ast == '[[':
-                builders.append(self.strParseListBuilder())
-            elif ast == '{{':
-                builders.append(self.strParseHashBuilder())
-            elif ast == ')':
+            # As above, the close is a str if it's a single close
+            if isinstance(ast, str) and ast == ')':
                 #Close this Multibuilder
-                if len(ast) == 2:
-                    return MultiBuilderBuilder(builders, self.strParseUnQuote(ast[0]))
-                else:
-                    return MultiBuilderBuilder(builders, EMPTYLINE)
+                return MultiBuilderBuilder(builders, EMPTYLINE)
+            elif isinstance(ast, tuple) and ast[0] == ')':
+                delimiter, callback = self.strParseBuilder_closehelper(ast[1:])
+                return MultiBuilderBuilder(builders, delimiter, callback)
             else:
-                raise ValueError("Not a valid builder")
+                builders.append(self.strParseBuilder_helper(ast))
 
     def strParseListBuilder(self):
         builder = None
@@ -549,30 +570,16 @@ class InputDefinition:
             ast = tatsu.parse(ChallengerGrammar.GRAMMAR, self.stringDef[self.stridx])
             self.stridx += 1
             logging.debug("ast: \"%s\"" % str(ast))
-            if isinstance(ast, tuple) and len(ast) > 1:
-                if builder is not None:
-                    raise ValueError("List Builder can only contain one element")
-                builder = self.strParseBlock(ast)
-            elif ast == '((':
-                if builder is not None:
-                    raise ValueError("List Builder can only contain one element")
-                builder = self.strParseMultiBuilderBuilder()
-            elif ast == '[[':
-                if builder is not None:
-                    raise ValueError("List Builder can only contain one element")
-                builder = self.strParseListBuilder()
-            elif ast == '{{':
-                if builder is not None:
-                    raise ValueError("List Builder can only contain one element")
-                builder = self.strParseHashBuilder()
-            elif ast == ']':
-                #Close this ListBuilder
-                if len(ast) == 2:
-                    return ListBuilder(builder, self.strParseUnQuote(ast[1]))
-                else:
-                    return ListBuilder(builder, EMPTYLINE)
+            # Same close forms as above, but with ']'
+            if isinstance(ast, str) and ast == ']':
+                return ListBuilder(builder, EMPTYLINE)
+            elif isinstance(ast, tuple) and ast[0] == ']':
+                delimiter, callback = self.strParseBuilder_closehelper(ast[1:])
+                return ListBuilder(builder, delimiter, callback)
             else:
-                raise ValueError("Not a valid builder")
+                if builder is not None:
+                    raise ValueError("List Builder can only contain one element")
+                builder = self.strParseBuilder_helper(ast)
 
     def strParseHashBuilder(self):
         builder = None
@@ -580,18 +587,23 @@ class InputDefinition:
             ast = tatsu.parse(ChallengerGrammar.GRAMMAR, self.stringDef[self.stridx])
             self.stridx += 1
             logging.debug("ast: \"%s\"" % str(ast))
-            if isinstance(ast, tuple) and len(ast) > 1 and ast[0][0] == '{':
-                if builder is not None:
-                    raise ValueError("Hash Builder can only contain one element")
-                builder = self.strParseBlock(ast)
-            elif ast == '}':
-                #Close this ListBuilder
-                if len(ast) == 2:
-                    return HashBuilder(builder, self.strParseUnQuote(ast[1]))
-                else:
-                    return HashBuilder(builder, EMPTYLINE)
+            # Same close forms as above
+            if isinstance(ast, str) and ast == '}':
+                return HashBuilder(builder, EMPTYLINE)
+            elif isinstance(ast, tuple) and ast[0] == '}':
+                delimiter, callback = self.strParseBuilder_closehelper(ast[1:])
+                return HashBuilder(builder, delimiter, callback)
             else:
-                raise ValueError("Not a valid builder")
+                # Hash builders can only contain hash builder type elements
+                # This means that the blocks encountered must be either '{', '{*', or '{d'
+                # All of these are multipls so will be a tuple
+                if isinstance(ast, tuple) and len(ast) > 1 and \
+                    (ast[0] == '{' or ast[0] == '{*' or ast[0] == '{d'):
+                    if builder is not None:
+                        raise ValueError("Hash Builder can only contain one element")
+                    builder = self.strParseBlock(ast)
+                else:
+                    raise ValueError("Not a valid builder")
 
     def strParseBlock(self, ast):
         logging.debug("ast: \"%s\"" % str(ast))
@@ -610,7 +622,7 @@ class InputDefinition:
         elif ast[0] == '{*':
             return self.strParseHashLineBlock(ast)
         elif ast[0] == '{<':
-            return self.strParseHashDistributeBlock(ast)
+            return self.strParseHashPairBlock(ast, True)
         elif ast[0] == 'or':
             return self.strParseOrBlock(ast)
         elif ast[0] == '>':
@@ -620,6 +632,10 @@ class InputDefinition:
 
     def strParseLiteralBlock(self, ast):
         logging.debug("ast: \"%s\"" % str(ast))
+        # Literals have 3 forms:
+        # ('#', parserFunction, #')
+        # ('#', "ExactMatch", '#')
+        # ('#', '#')
         if len(ast) == 2:
             return LiteralNoParse()
         m = re.match(r"\"(.+)\"", ast[1])
@@ -628,85 +644,130 @@ class InputDefinition:
         else:
             return LiteralBlock(self.functions[ast[1]])
 
+    def strParseTrailingArgs_helper(self, ast):
+        # All List/Multi blocks varients have the form:
+        #  ... "delimiter", ']')
+        #  ... "delimiter", '/', callback ']')
+        # To make this reusable, only the deliminator onwards is passed
+        logging.debug("ast: \"%s\"" % str(ast))
+
+        if len(ast) == 2:
+            delimiter = ast[0]
+            callback = None
+        elif len(ast) == 4:
+            delimiter = ast[0]
+            callback = self.functions[ast[2]]
+
+        if delimiter == "None":
+            delimiter = None
+        else:
+            delimiter = self.strParseUnQuote(delimiter)
+
+        return delimiter, callback
+
     def strParseMultiBlockLine(self, ast):
         logging.debug("ast: \"%s\"" % str(ast))
         blocks = []
+        # Multi blocks have the forms:
+        #  ('(', [ (any block) ...], "delimiter", ')')
+        #  ('(', [ (any block) ...], "delimiter", '/', callback ')')
+
         for b in ast[1]:
             blocks.append(self.strParseBlock(b))
-        return MultiBlockLine(blocks, self.strParseUnQuote(ast[2]))
+
+        delimiter, callback = self.strParseTrailingArgs_helper(ast[2:])
+
+        return MultiBlockLine(blocks, delimiter, callback)
 
     def strParseListBlock(self, ast):
         logging.debug("ast: \"%s\"" % str(ast))
-        seperator = ast[2]
-        if seperator == 'None':
-            return ListBlock(self.functions[ast[1]], None)
-        else:
-            return ListBlock(self.functions[ast[1]], self.strParseUnQuote(seperator))
+        # List blocks have the forms:
+        #  ('[', elementParser, "delimiter", ']')
+        #  ('[', elementParser, "delimiter", '/', callback ']')
+
+        elP = self.functions[ast[1]]
+
+        delimiter, callback = self.strParseTrailingArgs_helper(ast[2:])
+
+        return ListBlock(elP, delimiter, callback)
 
     def strParseSetBlock(self, ast):
         logging.debug("ast: \"%s\"" % str(ast))
-        seperator = ast[2]
-        if seperator == 'None':
-            return SetBlock(self.functions[ast[1]], None)
-        else:
-            return SetBlock(self.functions[ast[1]], self.strParseUnQuote(seperator))
+
+        elP = self.functions[ast[1]]
+
+        delimiter, callback = self.strParseTrailingArgs_helper(ast[2:])
+
+        return SetBlock(elP, delimiter, callback)
 
     def strParseListMunchBlock(self, ast):
         logging.debug("ast: \"%s\"" % str(ast))
+
+        # This block is special, the elements is a list, which parses into it's own tuple
+        # Due to a nueance of how the parser grabs the list, the '[' and ']' bookend the list itself
+        # inside the tuple. We therefore tunnel directly to the list
+        # i.e.:
+        # [* elementParser ('[', [...] ,']') "delimiter"...
+
+        elP = self.functions[ast[1]]
+
         elements = []
         for e in ast[2][1]:
             elements.append(self.strParseUnQuote(e))
 
-        seperator = ast[3]
-        if seperator == 'None':
-            return ListElementMunch(elements, self.functions[ast[1]], None)
-        else:
-            return ListElementMunch(elements, self.functions[ast[1]], self.strParseUnQuote(seperator))
+        delimiter, callback = self.strParseTrailingArgs_helper(ast[3:])
 
-    def strParseHashPairBlock(self, ast):
+        return ListElementMunch(elements, elP, delimiter, callback)
+
+
+    def strParseHashTypeKV_helper(self, ast):
+        # Hash types allow the key and value to also be blocks
+        # So we pull those out of the ast and recursively parse them
         logging.debug("ast: \"%s\"" % str(ast))
 
+        if type(ast[0]) == tuple:
+            key = self.strParseBlock(ast[0])
+        else:
+            key = self.functions[ast[0]]
+
         if type(ast[1]) == tuple:
-            key = self.strParseBlock(ast[2])
+            value = self.strParseBlock(ast[1])
         else:
-            key = self.functions[ast[1]]
+            value = self.functions[ast[1]]
 
-        if type(ast[2]) == tuple:
-            value = self.strParseBlock(ast[2])
-        else:
-            value = self.functions[ast[2]]
+        return key, value
 
-        return HashPairBlock(key, value, self.strParseUnQuote(ast[3]))
+    def strParseHashPairBlock(self, ast, distribute=False):
+        logging.debug("ast: \"%s\"" % str(ast))
+
+        # Hash pair blocks take the form:
+        #  ('{', keyparser|block, valueparser|block, "seperator", '}')
+        #  ('{', keyparser|block, valueparser|block, "seperator", '\', callback, '}')
+        # If key or value are blocks, then they will be nested tuples
+
+        key, value = self.strParseHashTypeKV_helper(ast[1:3])
+
+        # Incidentally the seperator and optional callback take the same form here
+        # As in listblocks, so reuse to make life easier
+        seperator, callback = self.strParseTrailingArgs_helper(ast[3:])
+
+        return HashPairBlock(key, value, seperator, distribute, callback)
 
     def strParseHashLineBlock(self, ast):
         logging.debug("ast: \"%s\"" % str(ast))
 
-        if type(ast[1]) == tuple:
-            key = self.strParseBlock(ast[2])
-        else:
-            key = self.functions[ast[1]]
+        # A HashLineBlock is almost identical to the HashPair, except that an additional
+        # Seperator is added. The first is always the key/value seperator and the second
+        # is always the item seperator. We reuse the trailing arg function as it will work
 
-        if type(ast[2]) == tuple:
-            value = self.strParseBlock(ast[2])
-        else:
-            value = self.functions[ast[2]]
+        key, value = self.strParseHashTypeKV_helper(ast[1:3])
 
-        return HashLineBlock(HashPairBlock(key, value, self.strParseUnQuote(ast[3])), self.strParseUnQuote(ast[4]))
+        seperator = self.strParseUnQuote(ast[3])
 
-    def strParseHashDistributeBlock(self, ast):
-        logging.debug("ast: \"%s\"" % str(ast))
+        itemSeperator, callback = self.strParseTrailingArgs_helper(ast[4:])
 
-        if type(ast[1]) == tuple:
-            key = self.strParseBlock(ast[2])
-        else:
-            key = self.functions[ast[1]]
+        return HashLineBlock(HashPairBlock(key, value, seperator), itemSeperator, callback)
 
-        if type(ast[2]) == tuple:
-            value = self.strParseBlock(ast[2])
-        else:
-            value = self.functions[ast[2]]
-
-        return HashPairBlock(key, value, self.strParseUnQuote(ast[3]), distribute=True)
 
     def strParseOrBlock(self, ast):
         logging.debug("ast: \"%s\"" % str(ast))

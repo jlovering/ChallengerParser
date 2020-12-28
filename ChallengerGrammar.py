@@ -34,7 +34,7 @@ multibuilderstart
 
 multibuilderend
     =
-    ')' [quotedstring]
+    ')' [quotedstring] ['/' functionName]
     ;
 
 listbuilderstart
@@ -44,7 +44,7 @@ listbuilderstart
 
 listbuilderend
     =
-    ']' [quotedstring]
+    ']' [quotedstring] ['/' functionName]
     ;
 
 hashbuilderstart
@@ -54,7 +54,7 @@ hashbuilderstart
 
 hashbuilderend
     =
-    '}' [quotedstring]
+    '}' [quotedstring] ['/' functionName]
     ;
 
 quotedstring
@@ -139,7 +139,7 @@ hashlineblock
 
 multiblock
     =
-    '(' {block}+ quotedstring ')'
+    '(' {block}+ quotedstring ['/' functionName] ')'
     ;
 
 functionName
