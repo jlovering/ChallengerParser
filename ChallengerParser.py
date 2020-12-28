@@ -772,6 +772,14 @@ class InputDefinition:
     def strParseOrBlock(self, ast):
         logging.debug("ast: \"%s\"" % str(ast))
 
+        # OrBlocks are 'special', they are parsed to be left noted
+        # i.e "block1 or block2" becomes ('or', block1, block2)
+        # When ors nest, this pattern repeats, so "bl1 or bl2 or bl3"
+        # becomes ('or', bl1, ('or', bl2, 'bl3'))
+        # Though untested, this should automatically build recursive or's
+        # Which is sub-optimal as it increases recursion depth (where the orblock
+        # can hypothetically work on n blocks)
+
         blocks = []
         for b in ast[1:]:
             blocks.append(self.strParseBlock(b))
