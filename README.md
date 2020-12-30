@@ -141,6 +141,8 @@ Notation:
     [< parsingFunction seperator|None </ optional callback function> ]
 ```
 
+(note that `[<` is the marker for the SetBlock)
+
 SetBlock is identical to ListBlock but returns a set rather than list (helpful
 for set operations)
 
@@ -173,6 +175,8 @@ Notation:
 ```
     {< [rev] keyParsingFunction|block valueParsingFunction|block seperator </ optional callback function> }
 ```
+
+(note that `{<` is the marker for the DistributingDictBlock)
 
 This is a special varient of the DictPairBlock. It is not well tested. This block requires that key resolves to a list, it will then iterate the key list and create entries for each key with the entire output of value.
 
@@ -240,8 +244,11 @@ Since the internal list builder is the only element, by convention the one eleme
 
 ### More Complicated Example
 ```python
+import ChallengerParser as parser
+
 composedSetMap = {}
 composedKeysCount = {}
+
 def composeSetMap(h):
     for k in h:
         if k in composedSetMap:
@@ -249,6 +256,7 @@ def composeSetMap(h):
         else:
             composedSetMap[k] = h[k]
     return h
+
 def composeKeyCount(l):
     for v in l:
         if v in composedKeysCount:
@@ -256,12 +264,13 @@ def composeKeyCount(l):
         else:
             composedKeysCount[v] = 1
     return l
+
 definition = parser.InputDefinition()
 definition.addFunction('endTrim', lambda s: s[:-1])
 definition.addFunction('composeSetMap', composeSetMap)
 definition.addFunction('composeKeyCount', composeKeyCount)
 definition.buildersFromStr('''[[
-    {< rev [<str ' '] >[str ', ' / composeKeyCount] endTrim< ' (contains ' / composeSetMap }
+        {< rev [<str ' '] >[str ', ' / composeKeyCount] endTrim< ' (contains ' / composeSetMap }
     ]]''')
 
 infile = open("file", "r")
