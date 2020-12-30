@@ -52,10 +52,10 @@ and:
 ```
     {{
         {int ([int ' '] or #quoteTrim#   [int ' '] ' | ') ': '}
-    }
+    }}
     [[
         [str None]
-    ]
+    ]]
 ```
 
 ## Parser language
@@ -78,7 +78,7 @@ Notation:
 ```
     [[
         ...
-    ] <optional end of section indicator> </ optional callback function>
+    ]] <optional end of section indicator> </ optional callback function>
 ```
 
 ListBuilder can contain exactly 1 block.
@@ -92,7 +92,7 @@ Notation:
 ```
     {{
         ...
-    } <optional end of section indicator> </ optional callback function>
+    }} <optional end of section indicator> </ optional callback function>
 ```
 
 DictBuilder can contain exactly 1 Dict type block:
@@ -109,7 +109,7 @@ Notation:
 ```
     ((
         ...
-    ) <optional end of section indicator> </ optional callback function>
+    )) <optional end of section indicator> </ optional callback function>
 ```
 
 MultiBuilder can contain multiple builders/blocks. MultiBuilder will consume lines passing them to each contained block sequentailly. If a block is a builder it will consume until termination and MultiBuilder will continue from where it stopped with the next block.
@@ -226,13 +226,59 @@ definition.addFunction('endTrim', lambda s: s[:-1])
 definition.buildersFromStr('''((
     ##
     [[
-        # endTrim#
-    ]
-)''')
+        # endTrim #
+    ]]
+))''')
 
 thisParser = parser.Input(infile, definition)
 data = thisParser.parse()
 ```
+
+This creates a multibuilder (a builder that can containe multiple sub-builders) which are called in turn. The multibuilder contains 2 elements, a literal that is not parsed (is thrown away), and a list builder. The sub-list builder parses a literal calling the `endTrim` function for the value parsed off each line.
+
+Since the internal list builder is the only element, by convention the one element list is exploded. So an example of the resulting data structure is: `[567, 119, 820]`
+
+### More Complicated Example
+```python
+composedSetMap = {}
+composedKeysCount = {}
+def composeSetMap(h):
+    for k in h:
+        if k in composedSetMap:
+            composedSetMap[k] = composedSetMap[k].intersection(h[k])
+        else:
+            composedSetMap[k] = h[k]
+    return h
+def composeKeyCount(l):
+    for v in l:
+        if v in composedKeysCount:
+            composedKeysCount[v] += 1
+        else:
+            composedKeysCount[v] = 1
+    return l
+definition = parser.InputDefinition()
+definition.addFunction('endTrim', lambda s: s[:-1])
+definition.addFunction('composeSetMap', composeSetMap)
+definition.addFunction('composeKeyCount', composeKeyCount)
+definition.buildersFromStr('''[[
+    {< rev [<str ' '] >[str ', ' / composeKeyCount] endTrim< ' (contains ' / composeSetMap }
+    ]]''')
+
+infile = open("file", "r")
+thisParser = parser.Input(infile, definition)
+data = thisParser.parse()
+```
+
+In this example the primary builder is a list builder. For each line it calles a distributed dict. This element parses key/value pairs which are seperated by ' (contains '. The distributed dict requires the key to be a list, and the values are duplicated onto every key. This distributed dict is given the 'rev' flag, indicating that the values occur first, then the keys. The keys are processed by calling the `endTrim` function on the list before it is seperated.
+Two callback functions are given. The first "composeKeyCount" is called on the parsed keys list. In this case it counts the occurances of different keys over all dicts. A second callback "composeSetMap" is called on each completed dictionary. It applies a set intersection of the key value pairs for every key (essentially the intersection over all keys).
+
+An example of the resulting data structure is:
+`[{'dairy': {'mxmxvkd', 'kfcds', 'nhms', 'sqjhc'}, 'fish': {'mxmxvkd', 'kfcds', 'nhms', 'sqjhc'}}, {'dairy': {'trh', 'fvjkl', 'sbzzf', 'mxmxvkd'}}, {'soy': {'fvjkl', 'sqjhc'}}, {'fish': {'sbzzf', 'mxmxvkd', 'sqjhc'}}]`
+
+And the secondary structures "composedSetMap" and "composedKeysCount" are:
+`{'dairy': {'mxmxvkd'}, 'fish': {'sqjhc', 'mxmxvkd'}, 'soy': {'fvjkl', 'sqjhc'}}`
+and:
+`{'dairy': 2, 'fish': 2, 'soy': 1}`
 
 ### API
 #### InputDefinition

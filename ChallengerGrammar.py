@@ -34,7 +34,7 @@ multibuilderstart
 
 multibuilderend
     =
-    ')' [quotedstring] ['/' functionName]
+    '))' [quotedstring] ['/' functionName]
     ;
 
 listbuilderstart
@@ -44,7 +44,7 @@ listbuilderstart
 
 listbuilderend
     =
-    ']' [quotedstring] ['/' functionName]
+    ']]' [quotedstring] ['/' functionName]
     ;
 
 hashbuilderstart
@@ -54,7 +54,7 @@ hashbuilderstart
 
 hashbuilderend
     =
-    '}' [quotedstring] ['/' functionName]
+    '}}' [quotedstring] ['/' functionName]
     ;
 
 quotedstring

@@ -555,10 +555,10 @@ class InputDefinition:
             self.stridx += 1
             logging.debug("ast: \"%s\"" % str(ast))
             # As above, the close is a str if it's a single close
-            if isinstance(ast, str) and ast == ')':
+            if isinstance(ast, str) and ast == '))':
                 #Close this Multibuilder
                 return MultiBuilderBuilder(builders, EMPTYLINE)
-            elif isinstance(ast, tuple) and ast[0] == ')':
+            elif isinstance(ast, tuple) and ast[0] == '))':
                 delimiter, callback = self.strParseBuilder_closehelper(ast[1:])
                 return MultiBuilderBuilder(builders, delimiter, callback)
             else:
@@ -571,9 +571,9 @@ class InputDefinition:
             self.stridx += 1
             logging.debug("ast: \"%s\"" % str(ast))
             # Same close forms as above, but with ']'
-            if isinstance(ast, str) and ast == ']':
+            if isinstance(ast, str) and ast == ']]':
                 return ListBuilder(builder, EMPTYLINE)
-            elif isinstance(ast, tuple) and ast[0] == ']':
+            elif isinstance(ast, tuple) and ast[0] == ']]':
                 delimiter, callback = self.strParseBuilder_closehelper(ast[1:])
                 return ListBuilder(builder, delimiter, callback)
             else:
@@ -588,9 +588,9 @@ class InputDefinition:
             self.stridx += 1
             logging.debug("ast: \"%s\"" % str(ast))
             # Same close forms as above
-            if isinstance(ast, str) and ast == '}':
+            if isinstance(ast, str) and ast == '}}':
                 return HashBuilder(builder, EMPTYLINE)
-            elif isinstance(ast, tuple) and ast[0] == '}':
+            elif isinstance(ast, tuple) and ast[0] == '}}':
                 delimiter, callback = self.strParseBuilder_closehelper(ast[1:])
                 return HashBuilder(builder, delimiter, callback)
             else:

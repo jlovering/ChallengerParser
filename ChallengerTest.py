@@ -54,7 +54,7 @@ class Day1Test_Strings(DayTest, unittest.TestCase):
         self.definition = parser.InputDefinition()
         self.definition.buildersFromStr('''[[
 #int#
-]''')
+]]''')
 
         self.infile = open("testfiles/day1-testInput", "r")
 
@@ -80,7 +80,7 @@ class Day2Test_Strings(DayTest, unittest.TestCase):
         self.definition.addFunction('Day2Test_Strings_custom', lambda s: s[:-1])
         self.definition.buildersFromStr('''[[
 ([int '-'] #Day2Test_Strings_custom# #str# ' ')
-]''')
+]]''')
         self.infile = open("testfiles/day2-testInput", "r")
 
 class Day3Test(DayTest, unittest.TestCase):
@@ -100,7 +100,7 @@ class Day3Test_Strings(DayTest, unittest.TestCase):
         self.definition = parser.InputDefinition()
         self.definition.buildersFromStr('''[[
 [str None]
-]''')
+]]''')
         self.infile = open("testfiles/day3-testInput", "r")
 
 class Day4Test(DayTest, unittest.TestCase):
@@ -124,8 +124,8 @@ class Day4Test_Strings(DayTest, unittest.TestCase):
         self.definition.buildersFromStr('''[[
 {{
 {*str str ':' ' '}
-}
-]''')
+}}
+]]''')
         self.infile = open("testfiles/day4-testInput", "r")
 
 class Day5Test(DayTest, unittest.TestCase):
@@ -141,7 +141,7 @@ class Day5Test_Strings(DayTest, unittest.TestCase):
         self.definition.addFunction('Day5Test_Strings_custom', lambda v: int(parser.tr(v, 'BFRL', '1010'), 2))
         self.definition.buildersFromStr('''[[
 #Day5Test_Strings_custom#
-]''')
+]]''')
         self.infile = open("testfiles/day5-testInput", "r")
 
 class Day6Test(DayTest, unittest.TestCase):
@@ -163,8 +163,8 @@ class Day6Test_Strings(DayTest, unittest.TestCase):
         self.definition.buildersFromStr('''[[
 [[
 [<str None]
-]
-]''')
+]]
+]]''')
 
         self.infile = open("testfiles/day6-testInput", "r")
 
@@ -204,7 +204,7 @@ class Day7Test_Strings(DayTest, unittest.TestCase):
         self.definition.addFunction('Day7Test_Strings_custom', bagParse)
         self.definition.buildersFromStr('''{{
 {str Day7Test_Strings_custom "bags contain"}
-}''')
+}}''')
 
         self.infile = open("testfiles/day7-testInput", "r")
 
@@ -228,7 +228,7 @@ class Day8Test_Strings(DayTest, unittest.TestCase):
         self.definition = parser.InputDefinition()
         self.definition.buildersFromStr('''[[
 (#str# #int# ' ')
-]''')
+]]''')
 
         self.infile = open("testfiles/day8-testInput", "r")
 
@@ -306,7 +306,7 @@ class Day14Test_Strings(DayTest, unittest.TestCase):
         self.definition.buildersFromStr('''#Day14Test_Strings_custom1#
 [[
 (#Day14Test_Strings_custom# #int# " = ")
-]''')
+]]''')
 
         self.infile = open("testfiles/day14-testInput", "r")
 
@@ -365,17 +365,17 @@ class Day16Test_Strings(DayTest, unittest.TestCase):
         self.definition = parser.InputDefinition()
         self.definition.buildersFromStr('''{{
 {str ([int '-'] [int '-'] ' or ') ':'}
-}
+}}
 ((
     #"your ticket:"#
     [int ',']
-)
+))
 ((
     #"nearby tickets:"#
     [[
         [int ',']
-    ]
-)''')
+    ]]
+))''')
 
         self.infile = open("testfiles/day16-testInput", "r")
 
@@ -415,10 +415,10 @@ class Day19Test_Strings(DayTest, unittest.TestCase):
         self.definition.addFunction('Day19Test_Strings_custom', lambda s: s[1])
         self.definition.buildersFromStr('''{{
 {int ([int ' '] or #Day19Test_Strings_custom# [int ' '] ' | ') ': '}
-}
+}}
 [[
 [str None]
-]''')
+]]''')
 
         self.infile = open("testfiles/day19-testInput", "r")
 
@@ -453,9 +453,9 @@ class Day20Test_Strings(DayTest, unittest.TestCase):
     (#"Tile"# #Day20Test_Strings_custom# ' ')
     [[
         [str None]
-    ]
-)
-]''')
+    ]]
+))
+]]''')
 
         self.infile = open("testfiles/day20-testInput", "r")
 
@@ -486,7 +486,7 @@ class Day21Test_Strings(DayTest, unittest.TestCase):
         self.definition.addFunction('Day21Test_Strings_custom', lambda s: s[:-1])
         self.definition.buildersFromStr('''[[
     ([str ' '] >[str ', '] Day21Test_Strings_custom< ' (contains ')
- ]''')
+ ]]''')
         self.infile = open("testfiles/day21-testInput", "r")
 
 class Day21ATest(DayTest, unittest.TestCase):
@@ -540,7 +540,6 @@ class Day21ATest_Strings(DayTest, unittest.TestCase):
         self.composedSetMap = {}
         self.composedKeysCount = {}
         def composeSetMap(h):
-            print(h)
             for k in h:
                 if k in self.composedSetMap:
                     self.composedSetMap[k] = self.composedSetMap[k].intersection(h[k])
@@ -548,9 +547,7 @@ class Day21ATest_Strings(DayTest, unittest.TestCase):
                     self.composedSetMap[k] = h[k]
             return h
         def composeKeyCount(l):
-            print(l)
             for v in l:
-                print(v)
                 if v in self.composedKeysCount:
                     self.composedKeysCount[v] += 1
                 else:
@@ -562,7 +559,7 @@ class Day21ATest_Strings(DayTest, unittest.TestCase):
         self.definition.addFunction('Day21ATest_composeKeyCount', composeKeyCount)
         self.definition.buildersFromStr('''[[
 {< rev [<str ' '] >[str ', ' / Day21ATest_composeKeyCount] Day21Test_Strings_custom< ' (contains ' / Day21ATest_composeSetMap }
-]''')
+]]''')
 
         self.infile = open("testfiles/day21-testInput", "r")
 
@@ -597,8 +594,8 @@ class Day22Test_Strings(DayTest, unittest.TestCase):
     ##
     [[
         #int#
-    ]
-)''')
+    ]]
+))''')
 
         self.infile = open("testfiles/day22-testInput", "r")
 
@@ -620,7 +617,7 @@ class Day24Test_Strings(DayTest, unittest.TestCase):
         self.definition = parser.InputDefinition()
         self.definition.buildersFromStr('''[[
         [* str %s None]
-    ]''' % (directions))
+    ]]''' % (directions))
 
         self.infile = open("testfiles/day24-testInput", "r")
 
@@ -637,18 +634,18 @@ class GrammarTest_Builders(GrammarTest, unittest.TestCase):
     def setUp(self):
         self.TESTSTR = \
 '''((
-) " "
+)) " "
 [[
-] "."
+]] "."
 {{
-} ","'''
+}} ","'''
         self.expect = [
             ('(('),
-            (')', '" "'),
+            ('))', '" "'),
             ('[['),
-            (']', '"."'),
+            (']]', '"."'),
             ('{{'),
-            ('}', '","'),
+            ('}}', '","'),
             ]
 
 class GrammarTest_LiteralBlock(GrammarTest, unittest.TestCase):
