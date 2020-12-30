@@ -11,7 +11,7 @@ NEWLINE = '\n'
 
 logger = logging.getLogger('root')
 FORMAT = "%(filename)s:%(lineno)d:%(funcName)20s() : %(message)s"
-logging.basicConfig(stream=sys.stderr, format=FORMAT, level=logging.DEBUG)
+logging.basicConfig(stream=sys.stderr, format=FORMAT, level=logging.INFO)
 
 def tr(inS, i, s):
     return inS.translate(str.maketrans(i,s))
