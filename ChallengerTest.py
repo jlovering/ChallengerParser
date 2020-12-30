@@ -497,7 +497,6 @@ class Day21ATest(DayTest, unittest.TestCase):
         self.composedSetMap = {}
         self.composedKeysCount = {}
         def composeSetMap(h):
-            print(h)
             for k in h:
                 if k in self.composedSetMap:
                     self.composedSetMap[k] = self.composedSetMap[k].intersection(h[k])
@@ -505,9 +504,7 @@ class Day21ATest(DayTest, unittest.TestCase):
                     self.composedSetMap[k] = h[k]
             return h
         def composeKeyCount(l):
-            print(l)
             for v in l:
-                print(v)
                 if v in self.composedKeysCount:
                     self.composedKeysCount[v] += 1
                 else:
@@ -601,11 +598,16 @@ class Day22Test_Strings(DayTest, unittest.TestCase):
 
 class Day24Test(DayTest, unittest.TestCase):
     def setUp(self):
-        directions = ['ne','e','se','sw','w','nw']
+        def isDir(d):
+            directions = ['ne','e','se','sw','w','nw']
+            if d in directions:
+                return parser.GACCEPT
+            else:
+                return parser.GCONTINUE
         self.definition = parser.InputDefinition()
         self.definition.addBuilder( \
             parser.ListBuilder( \
-                parser.ListElementMunch(directions, str, None), \
+                parser.ListElementMunch(isDir, str, None), \
                 parser.EMPTYLINE) \
             )
 
@@ -613,11 +615,17 @@ class Day24Test(DayTest, unittest.TestCase):
 
 class Day24Test_Strings(DayTest, unittest.TestCase):
     def setUp(self):
-        directions = ['ne','e','se','sw','w','nw']
+        def isDir(d):
+            directions = ['ne','e','se','sw','w','nw']
+            if d in directions:
+                return parser.GACCEPT
+            else:
+                return parser.GCONTINUE
         self.definition = parser.InputDefinition()
+        self.definition.addFunction('Day24Test_validator', isDir)
         self.definition.buildersFromStr('''[[
-        [* str %s None]
-    ]]''' % (directions))
+        [* str Day24Test_validator None]
+    ]]''')
 
         self.infile = open("testfiles/day24-testInput", "r")
 
@@ -671,11 +679,11 @@ class GrammarTest_ListBlock(GrammarTest, unittest.TestCase):
 class GrammarTest_GreedListBlock(GrammarTest, unittest.TestCase):
     def setUp(self):
         self.TESTSTR = \
-'''[*int [a,b,c] None]
-[*int [0, 1, 2] None /call]'''
+'''[*int testF None]
+[*int testF None /call]'''
         self.expect = [
-            ('[*', 'int', ('[', ['a', 'b', 'c'], ']'), 'None', ']'),
-            ('[*', 'int', ('[', ['0', '1', '2'], ']'), 'None', '/', 'call', ']'),
+            ('[*', 'int', 'testF', 'None', ']'),
+            ('[*', 'int', 'testF', 'None', '/', 'call', ']'),
             ]
 
 class GrammarTest_SetBlock(GrammarTest, unittest.TestCase):

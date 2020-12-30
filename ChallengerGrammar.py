@@ -111,7 +111,7 @@ listblock
 
 greedylistblock
     =
-    '[*' functionName listinput (quotedstring|none) ['/' functionName] ']'
+    '[*' functionName functionName (quotedstring|none) ['/' functionName] ']'
     ;
 
 setblock
@@ -151,11 +151,5 @@ multiblock
 functionName
     =
     /[a-zA-Z]+[a-zA-Z0-9_.]+/
-    ;
-
-listinput
-    =
-    |'[' ', '.{/[^\]^,]+/}+ ']'
-    |'[' ','.{/[^\]^,]+/}+ ']'
     ;
 '''

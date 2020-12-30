@@ -154,9 +154,13 @@ class ListBlock(SingleBlock):
 
         return self.list
 
+GACCEPT = 1
+GREJECT = 2
+GCONTINUE = 3
+
 class ListElementMunch(SingleBlock):
-    def __init__(self, elements, elementParser, delimiter, callback=None):
-        self.elements = elements
+    def __init__(self, elementEvaluator, elementParser, delimiter, callback=None):
+        self.elementEvaluator = elementEvaluator
         self.elementParser = elementParser
         self.delimiter = delimiter
         self.callback = callback
@@ -164,31 +168,43 @@ class ListElementMunch(SingleBlock):
         if callback is not None and not callable(callback):
             raise TypeError("Callback must be callable")
 
+        if not callable(elementEvaluator):
+            raise TypeError("List elementEvaluator must be callable")
+
         if not callable(elementParser):
-            raise TypeError("List elementParser must be callable", elementParser)
+            raise TypeError("List elementParser must be callable")
+
+    def elementTester_helper(self, cand, remaining):
+        if self.delimiter == None:
+            delim = ''
+        else:
+            delim = self.delimiter
+
+        cand.append(remaining.pop(0))
+        eparse = self.elementParser(delim.join(cand))
+        accept = self.elementEvaluator(eparse)
+        if accept == GACCEPT:
+            self.list.append(eparse)
+            cand = []
+        elif accept == GREJECT:
+            # When rejecting we throw away the first character and continue
+            # searching
+            cand.pop(0)
+            remaining[0:0] = cand
+
+        return cand, remaining
 
     def parse(self, inp):
         self.list = []
         logging.debug("inp: \"%s\"" % inp)
         if self.delimiter is None:
-            cand = []
-            remaining = inp
-            while remaining != "":
-                cand.append(self.elementParser(remaining[0]))
-                remaining = remaining[1:]
-                if self.elementParser(''.join(cand)) in self.elements:
-                    self.list.append(self.elementParser(''.join(cand)))
-                    cand = []
+            remaining = [c for c in inp]
         else:
-            inpA = inp.split(self.delimiter)
-            cand = []
-            remaining = inpA
-            while len(remaining) > 0:
-                cand.append(self.elementParser(remaining[0]))
-                remaining = remaining[1:]
-                if self.delimiter.join(cand) in self.elements:
-                    self.list.append(self.delimiter.join(cand))
-                    cand = []
+            remaining = inp.split(self.delimiter)
+
+        cand = []
+        while len(remaining) > 0:
+            cand, remaining = self.elementTester_helper(cand, remaining)
 
         if self.callback is not None:
             return self.callback(self.list)
@@ -703,21 +719,15 @@ class InputDefinition:
     def strParseListMunchBlock(self, ast):
         logging.debug("ast: \"%s\"" % str(ast))
 
-        # This block is special, the elements is a list, which parses into it's own tuple
-        # Due to a nueance of how the parser grabs the list, the '[' and ']' bookend the list itself
-        # inside the tuple. We therefore tunnel directly to the list
-        # i.e.:
-        # [* elementParser ('[', [...] ,']') "delimiter"...
+        # This block requires two functions
+        # [* elementParser elementEvaluator "delimiter"...
 
         elP = self.functions[ast[1]]
-
-        elements = []
-        for e in ast[2][1]:
-            elements.append(self.strParseUnQuote(e))
+        elEval = self.functions[ast[2]]
 
         delimiter, callback = self.strParseTrailingArgs_helper(ast[3:])
 
-        return ListElementMunch(elements, elP, delimiter, callback)
+        return ListElementMunch(elEval, elP, delimiter, callback)
 
 
     def strParseHashTypeKV_helper(self, ast):

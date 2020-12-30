@@ -149,10 +149,14 @@ for set operations)
 #### GreedyListBlock
 Notation:
 ```
-    [* parsingFunction [inputlist] seperator|None </ optional callback function> ]
+    [* parsingFunction elementAcceptor seperator|None </ optional callback function> ]
 ```
 
-The GreedListBlock will parse items in the inputlist into a list. i.e. a value must appear in the inputlist to be parsed. It will consume as many characters as needed to achieve a match. As with others, the parsing function will be applied to the value before placing in the returned list.
+The GreedListBlock will take items seperated using the sperator and call the 'elementAcceptor' function (which must be added with 'addFunction' (see below). The 'elementAcceptor' must return as follows:
+`GACCEPT` Accept the current value.
+`GREJECT` Reject the current value, this will throw away the first character and start again. It signals the parser that no acceptable value is possible (i.e. if values must start with a certain value).
+`GCONTINUE` Add another value and test again.
+Canidate values will have the parsing function applied before being passed to the elementAcceptor, and as with others, the parsing function will be applied to the value before placing in the returned list.
 
 #### DictPairBlock
 Notation:
